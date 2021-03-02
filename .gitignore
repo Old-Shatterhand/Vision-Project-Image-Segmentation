@@ -1,5 +1,6 @@
 # Untrack the papers
 Paper/
+data/
 
 # Untrack all pdfs
 *.pdf
