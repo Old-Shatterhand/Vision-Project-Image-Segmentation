@@ -1,6 +1,7 @@
 # Untrack the papers
 Paper/
 data/
+.ipynb_checkpoints/
 
 # Untrack all pdfs
 *.pdf
