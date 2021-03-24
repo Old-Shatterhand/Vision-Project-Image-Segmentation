@@ -31,7 +31,7 @@ def eval_epoch(epoch, length):
     f1, auc, dice, i = 0, 0, 0, 1
 
     for i, d in enumerate(valloader):
-        print("\r", i, "/", length)
+        print("\r", i, "/", length, end="")
         with torch.no_grad():
             prediction = model.forward(d[0].to(device)).cpu().squeeze()
             label_array = d[1].view(batch_size, 512 * 512).numpy()
@@ -46,9 +46,10 @@ def eval_epoch(epoch, length):
 
 
 # define the root directories for the data
-project_root_dir = "C:/Users/joere/Google Drive/Project"
-# local_path = project_root_dir + '/data/VOCdevkit/VOC2012/'
-local_path = project_root_dir + '/data/VOCtrainval_11-May-2012/VOCdevkit/VOC2012/'
+# project_root_dir = "C:/Users/joere/Google Drive/Project"
+project_root_dir = "../datasets"
+local_path = project_root_dir + '/data/VOCdevkit/VOC2012/'
+# local_path = project_root_dir + '/data/VOCtrainval_11-May-2012/VOCdevkit/VOC2012/'
 
 # define device to use
 if torch.cuda.is_available():
@@ -62,8 +63,9 @@ device = torch.device("cpu")
 batch_size = 8
 dst = pascalVOCDataset(root=local_path, is_transform=True)
 valloader = data.DataLoader(dst, batch_size=batch_size, shuffle=False)
-length = len(dst / batch_size)
+length = len(dst) / batch_size
 f1_scores, aucs, dices = [], [], []
+ofile = open("./metrics.txt", "w")
 
 for e in range(0, 250):
     # f1_score, auc_score, dice_coefficient = eval_epoch(e)
@@ -71,8 +73,12 @@ for e in range(0, 250):
     f1_scores.append(image_f1_score)
     aucs.append(image_auc_score)
     dices.append(image_dice_coefficient)
-    print("Episode", e + 1, "/ 250 - F1:", image_f1_score, "| AUC:",
-          image_auc_score, "| Dice:", image_dice_coefficient)
+    eval_string = F"Episode {e + 1} / 250 - F1: {image_f1_score} | AUC: {image_auc_score} | Dice: {image_dice_coefficient}"
+    print(eval_string)
+    ofile.write(eval_string)
+    ofile.flush()
+
+ofile.close()
 
 plt.plot(f1_scores, label="F1")
 plt.plot(aucs, label="AUC")
