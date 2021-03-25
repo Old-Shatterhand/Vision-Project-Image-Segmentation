@@ -1,13 +1,10 @@
-import dataloader as d
-import model as m
-
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.utils import data
-import numpy as np
 
-from os.path import join as pjoin
-
+import dataloader as d
+import model as m
 
 project_root_dir = "../../datasets/"
 dataset_root_path = project_root_dir + "data/cityscapes/"
@@ -45,7 +42,7 @@ episode_accuracies = []
 
 for e in range(start_epoch, end_epoch):
 
-    episode_loss, episode_accuracy = 0, 0
+    episode_loss, episode_accuracy, i = 0, 0, 1
 
     for i, (image, label) in enumerate(trainloader):
         label = label.to(device)
@@ -60,11 +57,11 @@ for e in range(start_epoch, end_epoch):
         loss = loss.item()
         episode_loss += loss
 
-        accuracy = torch.sum(output.argmax(dim=1).squeeze() == label).item() / (512*512*batch_size)
+        accuracy = torch.sum(output.argmax(dim=1).squeeze() == label).item() / (512 * 512 * batch_size)
         episode_accuracy += accuracy
-        
-        print("\rEpisode", e + 1, "/", end_epoch, "- Batch", i + 1, "/", len(train_set) // batch_size, "\tLoss:", loss, 
-                "\tAcc:", accuracy, end="")
+
+        print("\rEpisode", e + 1, "/", end_epoch, "- Batch", i + 1, "/", len(train_set) // batch_size, "\tLoss:", loss,
+              "\tAcc:", accuracy, end="")
 
     '''
     update the general statistics
@@ -74,7 +71,8 @@ for e in range(start_epoch, end_epoch):
     '''
     episode_losses.append(episode_loss / i)
     episode_accuracies.append(episode_accuracy / i)
-    print("\rEpisode", e + 1, "/", end_epoch, "- Completed \tLoss:", episode_losses[-1], "\tAcc:", episode_accuracies[-1])
+    print("\rEpisode", e + 1, "/", end_epoch, "- Completed \tLoss:", episode_losses[-1], "\tAcc:",
+          episode_accuracies[-1])
 
     # save the models weights
     model.save(F"{weights_path}network_epoch{e}.pth")
@@ -83,12 +81,14 @@ plt.title("Loss")
 plt.xlabel("Episodes")
 plt.ylabel("Loss")
 plt.plot(episode_losses, "r")
-plt.show()
+plt.legend(loc="right")
 plt.savefig("./tas2_losses.png")
+plt.show()
 
 plt.title("Accuracy")
 plt.xlabel("Episodes")
 plt.ylabel("Accuracy")
 plt.plot(episode_accuracies, "b")
-plt.show()
+plt.legend(loc="right")
 plt.savefig("./task2_losses.png")
+plt.show()

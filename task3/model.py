@@ -52,6 +52,34 @@ class UpConv(nn.Module):
         return self.conv.forward(x)
 
 
+class AttentionCNN(nn.Module):
+    def __init__(self, num_filters_in, num_filters_intern):
+        super(AttentionCNN, self).__init__()
+
+        self.from_encoding = nn.Sequential(
+            nn.Conv2d(num_filters_in, num_filters_intern, kernel_size=1, padding=0),
+            nn.BatchNorm2d(num_filters_intern)
+        )
+
+        self.from_decoding = nn.Sequential(
+            nn.Conv2d(num_filters_in, num_filters_intern, kernel_size=1, padding=0),
+            nn.BatchNorm2d(num_filters_intern)
+        )
+
+        self.combine = nn.Sequential(
+            nn.Conv2d(num_filters_intern, 1, kernel_size=1, padding=0),
+            nn.BatchNorm2d(1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, encoded, decoded):
+        tmp_encoded = self.from_encoding.forward(encoded)
+        tmp_decoded = self.from_decoding.forward(decoded)
+        combination = nn.ReLU(inplace=True)(tmp_encoded + tmp_decoded)
+        combination = self.combine(combination)
+        return decoded * combination
+
+
 class R2UNet(nn.Module):
     def __init__(self, num_classes, weights=None, t=2):
         super(R2UNet, self).__init__()
@@ -132,3 +160,105 @@ class R2UNet(nn.Module):
 
     def load(self, file_name):
         self.load_state_dict(torch.load(file_name))
+
+
+class AttR2UNet(nn.Module):
+    def __init__(self, num_classes, weights=None, t=2):
+        super(AttR2UNet, self).__init__()
+
+        self.d_rrcnn1 = RRCNN(3, 16, t)
+        self.d_rrcnn2 = RRCNN(16, 32, t)
+        self.d_rrcnn3 = RRCNN(32, 64, t)
+        self.d_rrcnn4 = RRCNN(64, 128, t)
+        self.d_rrcnn5 = RRCNN(128, 256, t)
+
+        self.up_conv4 = UpConv(256, 128)
+        self.att_cnn4 = AttentionCNN(128, 64)
+        self.u_rrcnn4 = RRCNN(256, 128, t)
+        self.up_conv3 = UpConv(128, 64)
+        self.att_cnn3 = AttentionCNN(64, 32)
+        self.u_rrcnn3 = RRCNN(128, 64, t)
+        self.up_conv2 = UpConv(64, 32)
+        self.att_cnn2 = AttentionCNN(32, 16)
+        self.u_rrcnn2 = RRCNN(64, 32, t)
+        self.up_conv1 = UpConv(32, 16)
+        self.u_rrcnn1 = RRCNN(32, 16, t)
+
+        self.o_conv = nn.Conv2d(16, num_classes, kernel_size=1, padding=0)
+
+        if weights is not None:
+            self.load(weights)
+
+    def forward(self, x):
+        # dimensionality comments are given as width x height x channels,
+        # nevertheless, the input should be channels first!!!
+
+        # x = 128x256x3
+        x1 = self.d_rrcnn1(x)
+        x = nn.MaxPool2d(2)(x1)
+
+        # x = 64x128x16
+        x2 = self.d_rrcnn2(x)
+        x = nn.MaxPool2d(2)(x2)
+
+        # x = 32x64x32
+        x3 = self.d_rrcnn3(x)
+        x = nn.MaxPool2d(2)(x3)
+
+        # x = 16x32x64
+        x4 = self.d_rrcnn4(x)
+        x = nn.MaxPool2d(2)(x4)
+
+        # x = 8x16x128
+        x5 = self.d_rrcnn5(x)
+
+        print(x.shape)
+        # x = 8x16x256
+        x = self.up_conv4(x5)
+        x4 = self.att_cnn4(x, x4)
+        print(x4.shape)
+        x = torch.cat((x, x4), dim=1)
+        x = self.u_rrcnn4(x)
+
+        print(x.shape)
+        # x = 16x32x128
+        x = self.up_conv3(x)
+        x3 = self.att_cnn3(x, x3)
+        print(x3.shape)
+        x = torch.cat((x, x3), dim=1)
+        x = self.u_rrcnn3(x)
+
+        print(x.shape)
+        # x = 32x64x64
+        x = self.up_conv2(x)
+        x2 = self.att_cnn2(x, x2)
+        print(x2.shape)
+        x = torch.cat((x, x2), dim=1)
+        x = self.u_rrcnn2(x)
+
+        print(x.shape)
+        # x = 64x128x32
+        x = self.up_conv1(x)
+        x = torch.cat((x, x1), dim=1)
+        x = self.u_rrcnn1(x)
+
+        print(x.shape)
+        # x = 128x256x15
+        x = self.o_conv(x)
+
+        return x
+
+    def classify(self, x):
+        return self.forward(x).argmax(dim=1)
+
+    def save(self, file_name):
+        torch.save(self.state_dict(), file_name)
+
+    def load(self, file_name):
+        self.load_state_dict(torch.load(file_name))
+
+
+net = AttR2UNet(num_classes=20)
+a = torch.rand(8, 3, 512, 256)
+b = net.forward(a)
+print(b.shape)

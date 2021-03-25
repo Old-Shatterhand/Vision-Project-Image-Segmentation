@@ -27,7 +27,6 @@ class RRCNN(nn.Module):
         self.pre_conv = nn.Conv2d(num_filter_in, num_filter_out, 1, padding=0, bias=bias)
         self.rec_cnn = nn.Sequential(
             RecCNN(num_filter_out, t, kernel_size, stride, padding, bias),
-            # RecCNN(num_filter_out, t, kernel_size, stride, padding, bias)
         )
 
     def forward(self, x):

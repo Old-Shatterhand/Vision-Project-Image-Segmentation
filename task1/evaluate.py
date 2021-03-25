@@ -1,8 +1,15 @@
 from utils import *
+import sys
 
 
 def image_auc(ground_truth, prediction):
-    # prediction should be the classification
+    """
+    Compute the AUC of the input image and the ground truth
+    :param ground_truth: true labels of each pixel
+    :param prediction: predictions for each classes and pixel, i.e. the
+    :return: AUC of the input image compared to the ground truth
+    """
+    # prediction should be the classification, not the argmaxed network-output
     prediction = prediction.view(21, 512 * 512).softmax(dim=0).transpose(0, 1).numpy()
 
     # this is done to ensure that every class occurs at least once in the true
@@ -16,21 +23,41 @@ def image_auc(ground_truth, prediction):
 
 
 def image_f1(ground_truth, prediction):
+    """
+    Compute the F1 score of the input image and the ground truth
+    :param ground_truth: true labels for each pixel
+    :param prediction: predicted classes for each pixel
+    :return: f1 score of the input image compared to the ground truth
+    """
     return f1_score(ground_truth, prediction, average='weighted')
 
 
 def image_dice(ground_truth, prediction):
+    """
+    Compute the dice_coefficient based on the jaccard score as they are convertible using the formula provided on
+    wikipedia: https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient#Difference_from_Jaccard
+    :param ground_truth: true labels of each pixel
+    :param prediction: predicted classes for each pixel
+    :return: soerensen-dice-coefficient of the input image compared to the ground truth
+    """
     jaccard = jaccard_score(ground_truth, prediction, average='weighted')
     return (2 * jaccard) / (1 + jaccard)
 
 
-def eval_epoch(epoch, length):
+def eval_epoch(epoch, length, valloader):
+    """
+    Evaluate an epoch
+    :param epoch:
+    :param length:
+    :param valloader:
+    :return:
+    """
     # initialize the model
-    # model = Segnet().to(device)
     model = Segnet(weights=F"{project_root_dir}/weights/network_epoch{epoch}.pth").to(device)
-    f1, auc, dice, i = 0, 0, 0, 1
 
+    f1, auc, dice, i = 0, 0, 0, 1
     for i, d in enumerate(valloader):
+        # print the progress
         print("\r", i, "/", length, end="")
         with torch.no_grad():
             prediction = model.forward(d[0].to(device)).cpu().squeeze()
@@ -45,43 +72,40 @@ def eval_epoch(epoch, length):
     return f1 / i, auc / i, dice / i
 
 
-# define the root directories for the data
-# project_root_dir = "C:/Users/joere/Google Drive/Project"
-project_root_dir = "../datasets"
-local_path = project_root_dir + '/data/VOCdevkit/VOC2012/'
-# local_path = project_root_dir + '/data/VOCtrainval_11-May-2012/VOCdevkit/VOC2012/'
+if __name__ == '__main__':
+    # define the root directories for the data
+    project_root_dir = sys.argv[1]  # "../datasets"
+    local_path = project_root_dir + '/data/VOCdevkit/VOC2012/'
 
-# define device to use
-if torch.cuda.is_available():
-    dev = "cuda:0"
-else:
-    dev = "cpu"
+    # initialize the dataset, dataloader, and other utils for the evaluation of task 1
+    device = torch.device("cpu")
+    batch_size = 8
+    dst = pascalVOCDataset(root=local_path, is_transform=True)
+    valloader = data.DataLoader(dst, batch_size=batch_size, shuffle=False)
+    length = len(dst) / batch_size
+    f1_scores, aucs, dices = [], [], []
+    ofile = open("./metrics.txt", "w")
 
-device = torch.device("cpu")
+    # iterate over all episodes and evaluate the network
+    for e in range(0, 250):
+        image_f1_score, image_auc_score, image_dice_coefficient = eval_epoch(e, length, valloader)
 
-# initialize the dataset handlers
-batch_size = 8
-dst = pascalVOCDataset(root=local_path, is_transform=True)
-valloader = data.DataLoader(dst, batch_size=batch_size, shuffle=False)
-length = len(dst) / batch_size
-f1_scores, aucs, dices = [], [], []
-ofile = open("./metrics.txt", "w")
+        f1_scores.append(image_f1_score)
+        aucs.append(image_auc_score)
+        dices.append(image_dice_coefficient)
 
-for e in range(0, 250):
-    # f1_score, auc_score, dice_coefficient = eval_epoch(e)
-    image_f1_score, image_auc_score, image_dice_coefficient = eval_epoch(e, length)
-    f1_scores.append(image_f1_score)
-    aucs.append(image_auc_score)
-    dices.append(image_dice_coefficient)
-    eval_string = F"Episode {e + 1} / 250 - F1: {image_f1_score} | AUC: {image_auc_score} | Dice: {image_dice_coefficient}"
-    print(eval_string)
-    ofile.write(eval_string)
-    ofile.flush()
+        eval_string = F"Episode {e + 1} / 250 - F1: {image_f1_score} | AUC: {image_auc_score} | Dice: {image_dice_coefficient}"
+        print(eval_string)
 
-ofile.close()
+        ofile.write(eval_string)
+        ofile.flush()
 
-plt.plot(f1_scores, label="F1")
-plt.plot(aucs, label="AUC")
-plt.plot(dices, label="Dice")
-plt.show()
-plt.savefig("./statistics.png")
+    ofile.close()
+
+    # save a figure with the three lines from the evaluation
+    plt.plot(f1_scores, label="F1")
+    plt.plot(aucs, label="AUC")
+    plt.plot(dices, label="Dice")
+    plt.legend(loc="lower right")
+    plt.savefig("./statistics.png")
+    plt.show()
