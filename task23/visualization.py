@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 import argparse
 import sys
+import os
 
 
 def parse_args():
@@ -25,6 +26,8 @@ def parse_args():
                         help="Set number of if GPU should be used if possible")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
                         help="Root directory of the dataset.")
+    parser.add_argument("-o", "--output", dest="output", type=str, nargs=1, default=["./"],
+                        help="Directory to store the file in. Will create a \"r2u_comparison.png\"-file.")
     return parser
 
 
@@ -61,7 +64,7 @@ if __name__ == '__main__':
     bounds = list(range(20))
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    fig = plt.figure(figsize=(12, 18))
+    fig = plt.figure(figsize=(12, 9))
 
     im1 = fig.add_subplot(321)
     im1.imshow(image[0].transpose(0, 2).transpose(0, 1).numpy())
@@ -88,5 +91,5 @@ if __name__ == '__main__':
     im6.axis("off")
 
     fig.tight_layout()
-    plt.savefig("./sample_classifications.png")
+    plt.savefig(os.path.join(results.output[0], "r2u_comparison.png"))
     plt.show()
