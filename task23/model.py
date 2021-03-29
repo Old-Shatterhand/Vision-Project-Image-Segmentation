@@ -66,7 +66,11 @@ class RRCNN(nn.Module):
 
         # define the structure of the layer
         self.pre_conv = nn.Conv2d(num_filters_in, num_filters_out, 1, padding=0, bias=bias)
-        self.rec_cnn = RecCNN(num_filters_out, t, kernel_size, stride, padding, bias)
+        self.rec_cnn = nn.Sequential(
+            RecCNN(num_filters_out, t, kernel_size, stride, padding, bias),
+            # This is what is used in the repo but not in the paper:
+            # RecCNN(num_filter_out, t, kernel_size, stride, padding, bias)
+        )
 
     def forward(self, x):
         """

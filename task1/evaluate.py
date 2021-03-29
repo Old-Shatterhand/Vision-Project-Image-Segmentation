@@ -44,7 +44,7 @@ def image_dice(ground_truth, prediction):
     return (2 * jaccard) / (1 + jaccard)
 
 
-def eval_epoch(epoch, length, valloader):
+def eval_epoch(epoch, length, valloader, project_root_dir):
     """
     Evaluate an epoch
     :param epoch:
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     # iterate over all episodes and evaluate the network
     for e in range(0, 250):
-        image_f1_score, image_auc_score, image_dice_coefficient = eval_epoch(e, length, valloader)
+        image_f1_score, image_auc_score, image_dice_coefficient = eval_epoch(e, length, valloader, project_root_dir)
 
         f1_scores.append(image_f1_score)
         aucs.append(image_auc_score)

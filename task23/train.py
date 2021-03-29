@@ -19,46 +19,47 @@ def parse_args():
                                                  "dataset")
     parser.add_argument("-w", "--weights", dest="weights", type=str, default=None, nargs=1,
                         help="Filepath to the weights to use as a warm-start for the network, i.e. pretrained weights.")
-    parser.add_argument("-l", "--weighted-loss", dest="weighted_loss", type=bool, default=False, action='store_true',
+    parser.add_argument("-l", "--weighted-loss", dest="weighted_loss", default=False, action='store_true',
                         help="Flag to be set to use weighted cross_entropy loss for optimization.")
-    parser.add_argument("-s", "--start", dest="start", type=int, nargs=1,
-                        help="Start index of the training. Used for savinc the weigths to not override old results.")
+    parser.add_argument("-s", "--start", dest="start", type=int, nargs=1, default=0,
+                        help="Start index of the training. Used for saving the weights to not override old results.")
     parser.add_argument("-e", "--end", dest="end", type=int, nargs=1, required=True, help="Number of epochs to train")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
                         help="Root directory of the dataset.")
     parser.add_argument("-t", "--target", dest="target", type=str, nargs=1, required=True,
                         help="Folder to store the weights in")
-    parser.add_argument("--gpu", dest="gpu", type=int, default=-1, help="Set if GPU should be used if possible")
-    parser.add_argument("-a", "--attention", dest="attention", type=bool, action='store_true', default=False,
+    parser.add_argument("--gpu", dest="gpu", type=int, default=-1,
+                        help="Set number of if GPU should be used if possible")
+    parser.add_argument("-a", "--attention", dest="attention", action='store_true', default=False,
                         help="Flag to be set to use attention in addition to R2U networks")
     return parser
 
 
 if __name__ == '__main__':
+    # read the arguments
     parser = parse_args()
     if len(sys.argv) == 1:
         parser.print_help()
     results = parser.parse_args(sys.argv[1:])
 
-    dataset_root_path = results.root + "data/cityscapes/"
-    weights_path = results.target
+    dataset_root_path = results.root[0] + "data/cityscapes/"
+    weights_path = results.target[0]
     batch_size = 32
     num_classes = 19
     learning_rate = 0.001
-    cpu_num = str(3)
     weights = [0.4795227666261817, 0.044115703166032035, 0.17762156254103204, 0.004551658309808298, 0.00604019549714417,
                0.002679068942029937, 0.0008393872685793067, 0.002815990287716649, 0.12196363945969013,
                0.007699043850938813, 0.0, 0.00708625601119354, 0.0009465834673713236, 0.0557585336380646,
                0.0023138812409729515, 0.0018495986040900736, 0.0018636213030133928, 0.0006389611508665966,
                0.002405177525111607, 0.07928837111016282]
 
-    if torch.cuda.is_available() and results.gpu:
-        dev = "cuda:" + cpu_num
+    if torch.cuda.is_available() and results.gpu != -1:
+        dev = "cuda:" + results.gpu
         print("Using GPU")
     else:
         dev = "cpu"
         print("Using CPU")
-    device = torch.device("cpu")
+    device = torch.device(dev)
 
     if results.attention:
         model = m.AttR2UNet(num_classes + 1).to(device)
@@ -70,7 +71,7 @@ if __name__ == '__main__':
     print("Model has", sum(p.numel() for p in model.parameters() if p.requires_grad), "parameters")
 
     train_set = d.cityscapesDataset(root=dataset_root_path, split="train")
-    trainloader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
     if results.weighted_loss:
         loss_f = nn.CrossEntropyLoss(weight=weights)
@@ -81,10 +82,10 @@ if __name__ == '__main__':
     episode_losses = []
     episode_accuracies = []
 
-    for e in range(results.start, results.end):
-        episode_loss, episode_accuracy = 0, 0
+    for e in range(results.start[0], results.end[0]):
+        episode_loss, episode_accuracy, i = 0, 0, 1
 
-        for i, (image, label) in enumerate(trainloader):
+        for i, (image, label) in enumerate(train_loader):
             label = label.to(device)
             output = model.forward(image.to(device))
             loss = loss_f(output, label)
