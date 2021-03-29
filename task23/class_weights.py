@@ -17,7 +17,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Script to count the number of pixels per class in the cityscapes"
                                                  "dataset.")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
-                        help="Root directory of the dataset. This should be the \"gtFine\" folder of the dataset.")
+                        help="Root directory of the dataset. This should be the folder containing the \"leftImg8bit\" folder and the \"gtFine\" folder of the dataset.")
     parser.add_argument("-t", "--transform", dest="transform", type=str, nargs=1, default=['lin'],
                         choices=['lin', 'log2', 'loge', 'log10'],
                         help="Transformation to perform on the final statistics before plotting")
@@ -60,6 +60,8 @@ if __name__ == '__main__':
             for k, c in enumerate(count_values(solution[0])):
                 class_counts[k] += c
                 total_class_counts[k] += c
+        
+        print()
         if results.print:
             print(s + ":")
             print(class_counts)
