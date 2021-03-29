@@ -1,25 +1,17 @@
+import collections
+import glob
 import os
 from os.path import join as pjoin
-import collections
-import json
-import torch
-import torch.nn as nn
-import imageio
+
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.misc as m
-import scipy.io as io
-import matplotlib.pyplot as plt
-import glob
-
+import torch
+import torch.nn as nn
 from PIL import Image
-from tqdm import tqdm
 from torch.utils import data
 from torchvision import transforms
-
-from sklearn.metrics import roc_auc_score, confusion_matrix, f1_score, jaccard_score
-from multiprocessing import cpu_count
-from multiprocessing.pool import ThreadPool
-
+from tqdm import tqdm
 
 _errstr = "Mode is unknown or incompatible with input array shape."
 
@@ -149,7 +141,7 @@ def toimage(arr, high=255, low=0, cmin=None, cmax=None, pal=None,
             cmin = np.amin(np.ravel(data))
         if cmax is None:
             cmax = np.amax(np.ravel(data))
-        data = (data*1.0 - cmin)*(high - low)/(cmax - cmin) + low
+        data = (data * 1.0 - cmin) * (high - low) / (cmax - cmin) + low
         if mode == 'I':
             data32 = data.astype(np.uint32)
             image = Image.frombytes(mode, shape, data32.tostring())
@@ -448,15 +440,15 @@ class pascalVOCDataset(data.Dataset):
     """
 
     def __init__(
-        self,
-        root,
-        sbd_path=None,
-        split="train_aug",
-        is_transform=False,
-        img_size=512,
-        augmentations=None,
-        img_norm=True,
-        test_mode=False,
+            self,
+            root,
+            sbd_path=None,
+            split="train_aug",
+            is_transform=False,
+            img_size=512,
+            augmentations=None,
+            img_norm=True,
+            test_mode=False,
     ):
         self.root = root
         self.sbd_path = sbd_path
@@ -635,7 +627,7 @@ class pascalVOCDataset(data.Dataset):
 
 class Segnet(nn.Module):
     # Upsample works with "minibatch x channels x height x width"-tensors
-  
+
     def __init__(self, num_classes=21, weights=None):
         """
         @param num_classes: number of classes to distinguish
@@ -643,7 +635,7 @@ class Segnet(nn.Module):
             to not relearn all the weights again
         """
         super(Segnet, self).__init__()
-        
+
         self.num_classes = num_classes
 
         # input channels, output channels, kernel_size
@@ -651,47 +643,47 @@ class Segnet(nn.Module):
         self.b_norm11 = nn.BatchNorm2d(16)
         self.d_conv12 = nn.Conv2d(16, 16, 3, padding=1)
         self.b_norm12 = nn.BatchNorm2d(16)
-        
+
         self.d_conv21 = nn.Conv2d(16, 32, 3, padding=1)
         self.b_norm21 = nn.BatchNorm2d(32)
         self.d_conv22 = nn.Conv2d(32, 32, 3, padding=1)
         self.b_norm22 = nn.BatchNorm2d(32)
-        
+
         self.d_conv31 = nn.Conv2d(32, 64, 3, padding=1)
         self.b_norm31 = nn.BatchNorm2d(64)
         self.d_conv32 = nn.Conv2d(64, 64, 3, padding=1)
         self.b_norm32 = nn.BatchNorm2d(64)
-        
+
         self.d_conv41 = nn.Conv2d(64, 128, 3, padding=1)
         self.b_norm41 = nn.BatchNorm2d(128)
         self.d_conv42 = nn.Conv2d(128, 128, 3, padding=1)
         self.b_norm42 = nn.BatchNorm2d(128)
-        
+
         self.b_conv51 = nn.Conv2d(128, 256, 3, padding=1)
         self.b_conv52 = nn.Conv2d(256, 256, 3, padding=1)
-        
+
         self.u_conv41 = nn.Conv2d(256, 128, 3, padding=1)
         self.u_conv42 = nn.Conv2d(256, 128, 3, padding=1)
-        
+
         self.u_conv31 = nn.Conv2d(128, 64, 3, padding=1)
         self.u_conv32 = nn.Conv2d(128, 64, 3, padding=1)
-        
+
         self.u_conv21 = nn.Conv2d(64, 32, 3, padding=1)
         self.u_conv22 = nn.Conv2d(64, 32, 3, padding=1)
-        
+
         self.u_conv11 = nn.Conv2d(32, 16, 3, padding=1)
         self.u_conv12 = nn.Conv2d(32, 16, 3, padding=1)
-        
+
         self.o_conv01 = nn.Conv2d(16, 16, 3, padding=1)
         self.o_conv02 = nn.Conv2d(16, self.num_classes, 3, padding=1)
-        
+
         if weights is not None:
             self.load(weights)
-  
+
     def forward(self, x):
         # dimensionality comments are given as width x height x channels,
         # nevertheless, the input should be channels first!!!
-        
+
         # x = 512x512x3
         x = self.d_conv11(x)
         x = nn.ReLU()(x)
@@ -739,11 +731,11 @@ class Segnet(nn.Module):
         # x = 32x32x128
         x = self.b_conv51(x)
         x = nn.ReLU()(x)
-        
+
         # x = 32x32x256
         x = self.b_conv52(x)
         x = nn.ReLU()(x)
-        
+
         # x = 32x32x256
         x = nn.Upsample(scale_factor=2)(x)
         # x = 64x64x256
@@ -752,7 +744,7 @@ class Segnet(nn.Module):
         x = torch.cat((x, x4), dim=1)
         x = self.u_conv41(x)
         x = nn.ReLU()(x)
-        
+
         # x = 64x64x128
         x = nn.Upsample(scale_factor=2)(x)
         # x = 128x128x128
@@ -761,7 +753,7 @@ class Segnet(nn.Module):
         x = torch.cat((x, x3), dim=1)
         x = self.u_conv32(x)
         x = nn.ReLU()(x)
-        
+
         # x = 128x128x64
         x = nn.Upsample(scale_factor=2)(x)
         # x = 256x256x64
@@ -770,7 +762,7 @@ class Segnet(nn.Module):
         x = torch.cat((x, x2), dim=1)
         x = self.u_conv22(x)
         x = nn.ReLU()(x)
-        
+
         # x = 256x256x32
         x = nn.Upsample(scale_factor=2)(x)
         # x = 512x512x32
@@ -779,18 +771,18 @@ class Segnet(nn.Module):
         x = torch.cat((x, x1), dim=1)
         x = self.u_conv12(x)
         x = nn.ReLU()(x)
-        
+
         x = self.o_conv01(x)
         x = nn.ReLU()(x)
         x = self.o_conv02(x)
-        
+
         return x
-    
+
     def classify(self, x):
         return self.forward(x).argmax(dim=1)
-    
+
     def save(self, file_name):
         torch.save(self.state_dict(), file_name)
-    
+
     def load(self, file_name):
         self.load_state_dict(torch.load(file_name))

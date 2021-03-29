@@ -1,5 +1,8 @@
-from utils import *
 import sys
+
+from sklearn.metrics import roc_auc_score, f1_score, jaccard_score
+
+from utils import *
 
 
 def image_auc(ground_truth, prediction):

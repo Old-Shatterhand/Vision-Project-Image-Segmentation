@@ -1,11 +1,12 @@
 import argparse
+import os
+import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.metrics import jaccard_score, multilabel_confusion_matrix, f1_score
 from torch.utils import data
-import sys
-import matplotlib.pyplot as plt
 
 import dataloader as d
 import model as m
@@ -13,8 +14,8 @@ import model as m
 
 def parse_args():
     """
-    Create the argument parser for this learning task
-    :return: parser object
+    Create an argument parser for this script for better handling
+    :return: Argument parser for the evaluation
     """
     parser = argparse.ArgumentParser(description="Script to evaluate R2UNets and AttentionR2UNets on the cityscapes "
                                                  "dataset")
@@ -31,6 +32,9 @@ def parse_args():
                         help="Set number of if GPU should be used if possible")
     parser.add_argument("-a", "--attention", dest="attention", action='store_true', default=False,
                         help="Flag to be set to use attention in addition to R2U networks")
+    parser.add_argument("-o", "--output", dest="output", type=str, nargs=1, default=["./"],
+                        help="Directory to store the files in. This will create a \"metrix.txt\"-file and a "
+                             "\"statistics.png\"-file.")
     return parser
 
 
@@ -75,8 +79,12 @@ def image_sensitivity_specificity(ground_truth, prediction, weights):
     :return: mean sensitivity, mean specificity
     """
     confusion_matrix = multilabel_confusion_matrix(ground_truth, prediction, labels=list(range(20)))
-    class_sensitivity = np.nan_to_num(np.divide(confusion_matrix[:, 1, 1], (confusion_matrix[:, 1, 1] + confusion_matrix[:, 1, 0])), neginf=0, posinf=0)
-    class_specificity = np.nan_to_num(np.divide(confusion_matrix[:, 0, 0], (confusion_matrix[:, 0, 0] + confusion_matrix[:, 0, 1])), neginf=0, posinf=0)
+    class_sensitivity = np.nan_to_num(np.divide(confusion_matrix[:, 1, 1],
+                                                (confusion_matrix[:, 1, 1] + confusion_matrix[:, 1, 0])),
+                                      neginf=0, posinf=0)
+    class_specificity = np.nan_to_num(np.divide(confusion_matrix[:, 0, 0],
+                                                (confusion_matrix[:, 0, 0] + confusion_matrix[:, 0, 1])),
+                                      neginf=0, posinf=0)
     sensitivity = np.sum(class_sensitivity * weights)
     specificity = np.sum(class_specificity * weights)
     return sensitivity, specificity, class_sensitivity, class_specificity
@@ -84,59 +92,70 @@ def image_sensitivity_specificity(ground_truth, prediction, weights):
 
 def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weights, batch_size):
     """
-    Evaluate an epoch of task 2
-    :param epoch:
-    :param length:
-    :param val_loader:
-    :param weights_dir:
-    :return:
+    Evaluate an epoch of task 2 and 3
+    :param epoch: number of the epoch to evaluate
+    :param length: number of images in the dataset
+    :param val_loader: dataloader to load the validation images from
+    :param weights_dir: directory with the weights
+    :return: performance measures of this epoch
     """
     # initialize the model
     model = model_class(num_classes=20, weights=F"{weights_dir}/network_epoch{epoch}.pth").to(device)
 
+    # initialize the epoch measures
     sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice, i = \
         0, 0, np.zeros(20), np.zeros(20), 0, 0, 0, 1
+
+    # iterate over all batched
     for i, d in enumerate(val_loader):
         # print the progress
         print("\r", i, "/", length / batch_size, end="")
 
+        # for simple forwarding not gradients need to be computed
         with torch.no_grad():
+            # compute the classification of the images
             prediction = model.forward(d[0].to(device)).cpu().squeeze()
             label_array = d[1].view(batch_size, 512 * 256).numpy()
             prediction_array = prediction.argmax(dim=1).squeeze().view(batch_size, 512 * 256).numpy()
 
+            # for each image of the batch compute the performance measures
             for ground_truth, prediction in zip(label_array, prediction_array):
                 sense, spec, class_sense, class_spec = image_sensitivity_specificity(ground_truth, prediction, weights)
 
+                # add to epoch specificity and sensitivity
                 sensitivity += sense
                 specificity += spec
                 class_sensitivity += class_sense
                 class_specificity += class_spec
 
+                # add to other epoch-wise measures
                 jaccard += image_jaccard(ground_truth, prediction)
                 f1 += image_f1(ground_truth, prediction)
                 dice += image_dice(ground_truth, prediction)
 
-    return sensitivity / length, specificity / length, class_sensitivity / length, class_specificity / length, jaccard / length, f1 / length, dice / length
+    # return the averaged performance measures
+    return sensitivity / length, specificity / length, class_sensitivity / length, class_specificity / length, \
+           jaccard / length, f1 / length, dice / length
 
 
 if __name__ == '__main__':
     # read the arguments
     parser = parse_args()
-    if len(sys.argv) == 1:
-        parser.print_help()
     results = parser.parse_args(sys.argv[1:])
 
     # initialize the dataset, dataloader, and other utils for the evaluation of task 1
     dataset_root_path = results.root[0] + "data/cityscapes/"
     weights_path = results.weights[0]
     batch_size = 10
+
+    # the weights are computes as the fraction of each class in the total number of classes per pixel
     weights = [0.4795227666261817, 0.044115703166032035, 0.17762156254103204, 0.004551658309808298, 0.00604019549714417,
                0.002679068942029937, 0.0008393872685793067, 0.002815990287716649, 0.12196363945969013,
                0.007699043850938813, 0.0, 0.00708625601119354, 0.0009465834673713236, 0.0557585336380646,
                0.0023138812409729515, 0.0018495986040900736, 0.0018636213030133928, 0.0006389611508665966,
                0.002405177525111607, 0.07928837111016282]
 
+    # set the device to use for computation, i.e. run on CPU or GPU
     if torch.cuda.is_available() and results.gpu != -1:
         dev = "cuda:" + results.gpu
         print("Using GPU")
@@ -145,13 +164,17 @@ if __name__ == '__main__':
         print("Using CPU")
     device = torch.device("cpu")
 
+    # initialize the dataset and the according dataloader
     val_set = d.cityscapesDataset(root=dataset_root_path, split="val")
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
-    ofile = open("./metrics.txt", "w")
+    # create an output file for detailed measures
+    ofile = open(os.path.join(results.output[0], "metrics.txt", "w"))
 
+    # initialize the model
     model = m.AttR2UNet if results.attention else m.R2UNet
 
+    # initialize the performance measures
     sensitivities, specificities, f1_scores, jaccard_scores, dice_scores = [], [], [], [], []
 
     # iterate over all episodes and evaluate the network
@@ -159,16 +182,19 @@ if __name__ == '__main__':
         sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice = \
             eval_epoch(e, len(val_set), val_loader, weights_path, model, device, weights, batch_size)
 
+        # update the statistics
         sensitivities.append(sensitivity)
         specificities.append(specificity)
         f1_scores.append(f1)
         jaccard_scores.append(jaccard)
         dice_scores.append(dice)
 
+        # print the actual performance of episode e
         eval_string = F"Episode {e + 1} / {results.end[0] - results.start[0]} - Se: {sensitivity} | " \
                       F"Sp: {specificity} | F1: {f1} | Jaccard: {jaccard} | Dice: {dice}"
         print(eval_string)
 
+        # save the data to the output file
         ofile.write(eval_string)
         ofile.write("\t" + str(class_sensitivity))
         ofile.write("\t" + str(class_specificity))
@@ -185,5 +211,5 @@ if __name__ == '__main__':
     plt.legend(loc="lower right")
     plt.title("Evaluation")
     plt.xlabel("Episodes")
-    plt.savefig("./statistics2.png")
+    plt.savefig("./statistics.png")
     plt.show()

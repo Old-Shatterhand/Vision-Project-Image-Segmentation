@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 import matplotlib.pyplot as plt
@@ -12,8 +13,8 @@ import model as m
 
 def parse_args():
     """
-    Create the argument parser for this learning task
-    :return: parser object
+    Create an argument parser for this script for better handling
+    :return: Argument parser for the training
     """
     parser = argparse.ArgumentParser(description="Script to train R2UNets and AttentionR2UNets on the cityscapes "
                                                  "dataset")
@@ -25,7 +26,8 @@ def parse_args():
                         help="Start index of the training. Used for saving the weights to not override old results.")
     parser.add_argument("-e", "--end", dest="end", type=int, nargs=1, required=True, help="Number of epochs to train")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
-                        help="Root directory of the dataset. This folder should contain the \"gtFine\" folder and the \"leftImg8bit\" folder.")
+                        help="Root directory of the dataset. This folder should contain the \"gtFine\" folder and the "
+                             "\"leftImg8bit\" folder.")
     parser.add_argument("-t", "--target", dest="target", type=str, nargs=1, required=True,
                         help="Folder to store the weights in.")
     parser.add_argument("--gpu", dest="gpu", type=int, default=[-1],
@@ -33,18 +35,26 @@ def parse_args():
     parser.add_argument("-a", "--attention", dest="attention", action='store_true', default=False,
                         help="Flag to be set to use attention in addition to R2U networks")
     parser.add_argument("-o", "--output", dest="output", default=["./"], type=str, nargs=1,
-                        help="Directory to store the curves in. This will create a \"loss.png\"-file and \"accuracy\"-file.")
+                        help="Directory to store the curves in. This will create a \"loss.png\"-file and "
+                             "\"accuracy\"-file.")
     return parser
 
 
 if __name__ == '__main__':
     # read the arguments
     parser = parse_args()
-    if len(sys.argv) == 1:
-        parser.print_help()
     results = parser.parse_args(sys.argv[1:])
 
-    weights_path = results.target[0]
+    # set the device to use for computation, i.e. run on CPU or GPU
+    if torch.cuda.is_available() and results.gpu[0] != -1:
+        dev = "cuda:" + results.gpu[0]
+        print("Using GPU")
+    else:
+        dev = "cpu"
+        print("Using CPU")
+    device = torch.device(dev)
+
+    # initialize some hyperparameter of the training
     batch_size = 32
     num_classes = 19
     learning_rate = 0.001
@@ -54,43 +64,45 @@ if __name__ == '__main__':
                0.0023138812409729515, 0.0018495986040900736, 0.0018636213030133928, 0.0006389611508665966,
                0.002405177525111607, 0.07928837111016282]
 
-    if torch.cuda.is_available() and results.gpu[0] != -1:
-        dev = "cuda:" + results.gpu[0]
-        print("Using GPU")
-    else:
-        dev = "cpu"
-        print("Using CPU")
-    device = torch.device(dev)
-
+    # initialize the network to use
     if results.attention:
         model = m.AttR2UNet(num_classes + 1).to(device)
     else:
         model = m.R2UNet(num_classes + 1).to(device)
 
+    # load the weights to the network if some are provided
     if results.weights is not None:
         model.load(results.weights[0])
     print("Model has", sum(p.numel() for p in model.parameters() if p.requires_grad), "parameters")
 
+    # initialize te dataset and the dataloader
     train_set = d.cityscapesDataset(root=results.root[0], split="train")
     train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
+    # initialize the loss-function, if necessary with weights, and the optimizer
     if results.weighted_loss:
         loss_f = nn.CrossEntropyLoss(weight=torch.FloatTensor(weights))
     else:
         loss_f = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    # initialize some statistics
     episode_losses = []
     episode_accuracies = []
 
+    # start the training loop
     for e in range(results.start[0], results.end[0]):
+        # some episode statistics
         episode_loss, episode_accuracy, i = 0, 0, 1
 
+        # iterate over all batched in the dataloader
         for i, (image, label) in enumerate(train_loader):
+            # forward the image through the network and compute the loss
             label = label.to(device)
             output = model.forward(image.to(device))
             loss = loss_f(output, label)
 
+            # perform backpropagation through the network
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -99,10 +111,11 @@ if __name__ == '__main__':
             loss = loss.item()
             episode_loss += loss
 
-            accuracy = torch.sum(output.argmax(dim=1).squeeze() == label).item() / (512 * 512 * batch_size)
+            accuracy = torch.sum(output.argmax(dim=1).squeeze() == label).item() / (512 * 256 * batch_size)
             episode_accuracy += accuracy
 
-            print("\rEpisode", e + 1, "/", results.end[0], "- Batch", i + 1, "/", len(train_set) // batch_size, "\tLoss:",
+            print("\rEpisode", e + 1, "/", results.end[0], "- Batch", i + 1, "/", len(train_set) // batch_size,
+                  "\tLoss:",
                   loss, "\tAcc:", accuracy, end="")
 
         '''
@@ -117,8 +130,9 @@ if __name__ == '__main__':
               episode_accuracies[-1])
 
         # save the models weights
-        model.save(F"{weights_path}network_epoch{e}.pth")
+        model.save(F"{results.target[0]}network_epoch{e}.pth")
 
+    # plot the loss-curve of the training
     plt.title("Loss")
     plt.xlabel("Episodes")
     plt.ylabel("Loss")
@@ -126,6 +140,7 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(results.output[0], "loss.png"))
     plt.show()
 
+    # plot the accuracy-curve of the training
     plt.title("Accuracy")
     plt.xlabel("Episodes")
     plt.ylabel("Accuracy")

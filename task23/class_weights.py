@@ -1,9 +1,9 @@
 import argparse
-import sys
-import numpy as np
-import matplotlib.pyplot as plt
 import os
+import sys
 
+import matplotlib.pyplot as plt
+import numpy as np
 from torch.utils import data
 
 import dataloader as d
@@ -11,24 +11,31 @@ import dataloader as d
 
 def parse_args():
     """
-    Create the argument parser for this learning task
-    :return: parser object
+    Create an argument parser for this script for better handling
+    :return: Argument parser for the class weighting
     """
     parser = argparse.ArgumentParser(description="Script to count the number of pixels per class in the cityscapes"
                                                  "dataset.")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
-                        help="Root directory of the dataset. This should be the folder containing the \"leftImg8bit\" folder and the \"gtFine\" folder of the dataset.")
+                        help="Root directory of the dataset. This should be the folder containing the \"leftImg8bit\" "
+                             "folder and the \"gtFine\" folder of the dataset.")
     parser.add_argument("-t", "--transform", dest="transform", type=str, nargs=1, default=['lin'],
                         choices=['lin', 'log2', 'loge', 'log10'],
                         help="Transformation to perform on the final statistics before plotting")
     parser.add_argument("-o", "--output", dest="output", type=str, nargs=1, default=["./"],
-                        help="Directory to store the file in. Will create a \"cityscapes_pixels.png\"-file.")
+                        help="Directory to store the file in. This will create a \"cityscapes_pixels.png\"-file.")
     parser.add_argument("-p", "--print", default=False, action='store_true',
                         help="Flag indicating to print the exact number of pixels pwe classes.")
     return parser
 
 
 def count_values(img, bins=20):
+    """
+    count the pixelwise occurrences in each class
+    :param img: input image
+    :param bins: number of different classes
+    :return: pixel counts per class
+    """
     counts = [0 for _ in range(bins)]
     for j in range(img.shape[0]):
         for i, t in enumerate(img[j, :].bincount(minlength=bins)):
@@ -37,13 +44,11 @@ def count_values(img, bins=20):
 
 
 if __name__ == '__main__':
-
     # read the arguments
     parser = parse_args()
-    if len(sys.argv) == 1:
-        parser.print_help()
     results = parser.parse_args(sys.argv[1:])
 
+    # initialize some fields for the statistics
     num_classes = 20
     total_class_counts = [0 for _ in range(num_classes)]
 
@@ -60,7 +65,7 @@ if __name__ == '__main__':
             for k, c in enumerate(count_values(solution[0])):
                 class_counts[k] += c
                 total_class_counts[k] += c
-        
+
         print()
         if results.print:
             print(s + ":")
@@ -70,6 +75,7 @@ if __name__ == '__main__':
         print("Total:")
         print(total_class_counts)
 
+    # transform the counts according to the provided transformation
     total_class_counts = np.array(total_class_counts)
     if results.transform[0] == "log2":
         total_class_counts = np.log2(total_class_counts)
@@ -78,6 +84,7 @@ if __name__ == '__main__':
     elif results.transform[0] == "log10":
         total_class_counts = np.log10(total_class_counts)
 
+    # plot the transformed counts as a bar chart
     plt.bar(list(range(len(total_class_counts))), total_class_counts)
     plt.xlabel("Classes")
     plt.ylabel(F"Frequency ({results.transform[0]})")
