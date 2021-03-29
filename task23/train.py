@@ -25,13 +25,15 @@ def parse_args():
                         help="Start index of the training. Used for saving the weights to not override old results.")
     parser.add_argument("-e", "--end", dest="end", type=int, nargs=1, required=True, help="Number of epochs to train")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
-                        help="Root directory of the dataset.")
+                        help="Root directory of the dataset. This folder should contain the \"gtFine\" folder and the \"leftImg8bit\" folder.")
     parser.add_argument("-t", "--target", dest="target", type=str, nargs=1, required=True,
-                        help="Folder to store the weights in")
-    parser.add_argument("--gpu", dest="gpu", type=int, default=-1,
+                        help="Folder to store the weights in.")
+    parser.add_argument("--gpu", dest="gpu", type=int, default=[-1],
                         help="Set number of if GPU should be used if possible")
     parser.add_argument("-a", "--attention", dest="attention", action='store_true', default=False,
                         help="Flag to be set to use attention in addition to R2U networks")
+    parser.add_argument("-o", "--output", dest="output", default=["./"], type=str, nargs=1,
+                        help="Directory to store the curves in. This will create a \"loss.png\"-file and \"accuracy\"-file.")
     return parser
 
 
@@ -42,7 +44,6 @@ if __name__ == '__main__':
         parser.print_help()
     results = parser.parse_args(sys.argv[1:])
 
-    dataset_root_path = results.root[0] + "data/cityscapes/"
     weights_path = results.target[0]
     batch_size = 32
     num_classes = 19
@@ -53,8 +54,8 @@ if __name__ == '__main__':
                0.0023138812409729515, 0.0018495986040900736, 0.0018636213030133928, 0.0006389611508665966,
                0.002405177525111607, 0.07928837111016282]
 
-    if torch.cuda.is_available() and results.gpu != -1:
-        dev = "cuda:" + results.gpu
+    if torch.cuda.is_available() and results.gpu[0] != -1:
+        dev = "cuda:" + results.gpu[0]
         print("Using GPU")
     else:
         dev = "cpu"
@@ -67,14 +68,14 @@ if __name__ == '__main__':
         model = m.R2UNet(num_classes + 1).to(device)
 
     if results.weights is not None:
-        model.load(results.weights)
+        model.load(results.weights[0])
     print("Model has", sum(p.numel() for p in model.parameters() if p.requires_grad), "parameters")
 
-    train_set = d.cityscapesDataset(root=dataset_root_path, split="train")
+    train_set = d.cityscapesDataset(root=results.root[0], split="train")
     train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
 
     if results.weighted_loss:
-        loss_f = nn.CrossEntropyLoss(weight=weights)
+        loss_f = nn.CrossEntropyLoss(weight=torch.FloatTensor(weights))
     else:
         loss_f = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -101,7 +102,7 @@ if __name__ == '__main__':
             accuracy = torch.sum(output.argmax(dim=1).squeeze() == label).item() / (512 * 512 * batch_size)
             episode_accuracy += accuracy
 
-            print("\rEpisode", e + 1, "/", results.end, "- Batch", i + 1, "/", len(train_set) // batch_size, "\tLoss:",
+            print("\rEpisode", e + 1, "/", results.end[0], "- Batch", i + 1, "/", len(train_set) // batch_size, "\tLoss:",
                   loss, "\tAcc:", accuracy, end="")
 
         '''
@@ -112,7 +113,7 @@ if __name__ == '__main__':
         '''
         episode_losses.append(episode_loss / i)
         episode_accuracies.append(episode_accuracy / i)
-        print("\rEpisode", e + 1, "/", results.end, "- Completed \tLoss:", episode_losses[-1], "\tAcc:",
+        print("\rEpisode", e + 1, "/", results.end[0], "- Completed \tLoss:", episode_losses[-1], "\tAcc:",
               episode_accuracies[-1])
 
         # save the models weights
@@ -122,12 +123,12 @@ if __name__ == '__main__':
     plt.xlabel("Episodes")
     plt.ylabel("Loss")
     plt.plot(episode_losses, "r")
-    plt.savefig("./loss.png")
+    plt.savefig(os.path.join(results.output[0], "loss.png"))
     plt.show()
 
     plt.title("Accuracy")
     plt.xlabel("Episodes")
     plt.ylabel("Accuracy")
     plt.plot(episode_accuracies, "b")
-    plt.savefig("./accuracy.png")
+    plt.savefig(os.path.join(results.output[0], "accuracy.png"))
     plt.show()
