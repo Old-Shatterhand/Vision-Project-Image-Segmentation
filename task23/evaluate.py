@@ -75,8 +75,8 @@ def image_sensitivity_specificity(ground_truth, prediction, weights):
     :return: mean sensitivity, mean specificity
     """
     confusion_matrix = multilabel_confusion_matrix(ground_truth, prediction, labels=list(range(20)))
-    class_sensitivity = confusion_matrix[:, 1, 1] / (confusion_matrix[:, 1, 1] + confusion_matrix[:, 1, 0])
-    class_specificity = confusion_matrix[:, 0, 0] / (confusion_matrix[:, 0, 0] + confusion_matrix[:, 0, 1])
+    class_sensitivity = np.nan_to_num(np.divide(confusion_matrix[:, 1, 1], (confusion_matrix[:, 1, 1] + confusion_matrix[:, 1, 0])), neginf=0, posinf=0)
+    class_specificity = np.nan_to_num(np.divide(confusion_matrix[:, 0, 0], (confusion_matrix[:, 0, 0] + confusion_matrix[:, 0, 1])), neginf=0, posinf=0)
     sensitivity = np.sum(class_sensitivity * weights)
     specificity = np.sum(class_specificity * weights)
     return sensitivity, specificity, class_sensitivity, class_specificity
@@ -92,7 +92,7 @@ def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weig
     :return:
     """
     # initialize the model
-    model = model_class(num_classes=10, weights=F"{weights_dir}/weights/network_epoch{epoch}.pth").to(device)
+    model = model_class(num_classes=20, weights=F"{weights_dir}/network_epoch{epoch}.pth").to(device)
 
     sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice, i = \
         0, 0, np.zeros(20), np.zeros(20), 0, 0, 0, 1
@@ -117,7 +117,7 @@ def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weig
                 f1 += image_f1(ground_truth, prediction)
                 dice += image_dice(ground_truth, prediction)
 
-    return sensitivity / i, specificity / i, class_sensitivity / i, class_specificity / i, jaccard / i, f1 / i, dice / i
+    return sensitivity / length, specificity / length, class_sensitivity / length, class_specificity / length, jaccard / length, f1 / length, dice / length
 
 
 if __name__ == '__main__':
@@ -170,8 +170,8 @@ if __name__ == '__main__':
         print(eval_string)
 
         ofile.write(eval_string)
-        ofile.write(class_sensitivity)
-        ofile.write(class_specificity)
+        ofile.write("\t" + str(class_sensitivity))
+        ofile.write("\t" + str(class_specificity))
         ofile.flush()
 
     ofile.close()
@@ -185,5 +185,5 @@ if __name__ == '__main__':
     plt.legend(loc="lower right")
     plt.title("Evaluation")
     plt.xlabel("Episodes")
-    plt.savefig("./statistics.png")
+    plt.savefig("./statistics2.png")
     plt.show()
