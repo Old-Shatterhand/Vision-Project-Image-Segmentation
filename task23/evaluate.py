@@ -27,13 +27,14 @@ def parse_args():
     parser.add_argument("-e", "--end", dest="end", type=int, nargs=1, required=True,
                         help="Number of epochs that were trained and should now be evaluated")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
-                        help="Root directory of the dataset.")
-    parser.add_argument("--gpu", dest="gpu", type=int, default=-1,
+                        help="Root directory of the dataset. This should be the folder containing the \"leftImg8bit\" "
+                             "folder and the \"gtFine\" folder of the dataset.")
+    parser.add_argument("--gpu", dest="gpu", type=int, default=[-1],
                         help="Set number of if GPU should be used if possible")
     parser.add_argument("-a", "--attention", dest="attention", action='store_true', default=False,
                         help="Flag to be set to use attention in addition to R2U networks")
     parser.add_argument("-o", "--output", dest="output", type=str, nargs=1, default=["./"],
-                        help="Directory to store the files in. This will create a \"metrix.txt\"-file and a "
+                        help="Directory to store the files in. This will create a \"metrics.txt\"-file and a "
                              "\"statistics.png\"-file.")
     return parser
 
@@ -100,7 +101,7 @@ def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weig
     :return: performance measures of this epoch
     """
     # initialize the model
-    model = model_class(num_classes=20, weights=F"{weights_dir}/network_epoch{epoch}.pth").to(device)
+    model = model_class(num_classes=20, weights=os.path.join(weights_dir, F"network_epoch{epoch}.pth")).to(device)
 
     # initialize the epoch measures
     sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice, i = \
@@ -143,11 +144,6 @@ if __name__ == '__main__':
     parser = parse_args()
     results = parser.parse_args(sys.argv[1:])
 
-    # initialize the dataset, dataloader, and other utils for the evaluation of task 1
-    dataset_root_path = results.root[0] + "data/cityscapes/"
-    weights_path = results.weights[0]
-    batch_size = 10
-
     # the weights are computes as the fraction of each class in the total number of classes per pixel
     weights = [0.4795227666261817, 0.044115703166032035, 0.17762156254103204, 0.004551658309808298, 0.00604019549714417,
                0.002679068942029937, 0.0008393872685793067, 0.002815990287716649, 0.12196363945969013,
@@ -156,8 +152,8 @@ if __name__ == '__main__':
                0.002405177525111607, 0.07928837111016282]
 
     # set the device to use for computation, i.e. run on CPU or GPU
-    if torch.cuda.is_available() and results.gpu != -1:
-        dev = "cuda:" + results.gpu
+    if torch.cuda.is_available() and results.gpu[0] != -1:
+        dev = "cuda:" + results.gpu[0]
         print("Using GPU")
     else:
         dev = "cpu"
@@ -165,7 +161,8 @@ if __name__ == '__main__':
     device = torch.device("cpu")
 
     # initialize the dataset and the according dataloader
-    val_set = d.cityscapesDataset(root=dataset_root_path, split="val")
+    batch_size = 10
+    val_set = d.cityscapesDataset(root=results.root[0], split="val")
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
     # create an output file for detailed measures
@@ -180,7 +177,7 @@ if __name__ == '__main__':
     # iterate over all episodes and evaluate the network
     for e in range(results.start[0], results.end[0]):
         sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice = \
-            eval_epoch(e, len(val_set), val_loader, weights_path, model, device, weights, batch_size)
+            eval_epoch(e, len(val_set), val_loader, results.weights[0], model, device, weights, batch_size)
 
         # update the statistics
         sensitivities.append(sensitivity)
@@ -211,5 +208,5 @@ if __name__ == '__main__':
     plt.legend(loc="lower right")
     plt.title("Evaluation")
     plt.xlabel("Episodes")
-    plt.savefig("./statistics.png")
+    plt.savefig(os.path.join(results.output[0], "statistics.png"))
     plt.show()

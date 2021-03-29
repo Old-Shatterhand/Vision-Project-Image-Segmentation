@@ -26,10 +26,11 @@ def parse_args():
     parser.add_argument("--w-attr2u", dest="w_att_r2u", type=str, required=True, nargs=1,
                         help="Path to the weights file of the AttentionR2UNet trained with weighted CE-Loss to use for "
                              "classification.")
-    parser.add_argument("--gpu", dest="gpu", type=int, default=-1,
+    parser.add_argument("--gpu", dest="gpu", type=int, default=[-1],
                         help="Set number of if GPU should be used if possible")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
-                        help="Root directory of the dataset.")
+                        help="Root directory of the dataset.This should be the folder containing the \"leftImg8bit\" "
+                             "folder and the \"gtFine\" folder of the dataset.")
     parser.add_argument("-o", "--output", dest="output", type=str, nargs=1, default=["./"],
                         help="Directory to store the file in. This will create a \"r2u_comparison.png\"-file.")
     return parser
@@ -41,8 +42,8 @@ if __name__ == '__main__':
     results = parser.parse_args(sys.argv[1:])
 
     # set the device to use for computation, i.e. run on CPU or GPU
-    if torch.cuda.is_available() and results.gpu != -1:
-        dev = "cuda:" + results.gpu
+    if torch.cuda.is_available() and results.gpu[0] != -1:
+        dev = "cuda:" + results.gpu[0]
         print("Using GPU")
     else:
         dev = "cpu"

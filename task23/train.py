@@ -130,7 +130,7 @@ if __name__ == '__main__':
               episode_accuracies[-1])
 
         # save the models weights
-        model.save(F"{results.target[0]}network_epoch{e}.pth")
+        model.save(os.path.join(results.target[0], F"network_epoch{e}.pth"))
 
     # plot the loss-curve of the training
     plt.title("Loss")
