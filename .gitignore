@@ -1,6 +1,5 @@
 # Untrack the papers
 Paper/
-weights/
 data/
 .ipynb_checkpoints/
 
