@@ -209,7 +209,8 @@ if __name__ == '__main__':
     val_loader = data.DataLoader(val_set, batch_size=batch_size, shuffle=True)
 
     # create an output file for detailed measures
-    ofile = open(os.path.join(results.output[0], "metrics.txt", "w"))
+    if not results.classes:
+        ofile = open(os.path.join(results.output[0], "metrics.txt"), "w")
 
     # initialize the model
     model = m.AttR2UNet if results.attention else m.R2UNet
