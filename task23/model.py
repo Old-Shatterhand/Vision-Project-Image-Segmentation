@@ -200,7 +200,7 @@ class R2UNet(nn.Module):
         :param x: input tensor to the network, should be 4-dimensional
         :return: prediction of the network as a 4-dimensional tensor
         """
-        # The dimensionality comments are given as width x height x channels
+        # The dimensionality comments are given as width x height x channels at the actual state
         # x = 128x256x3
         x1 = self.d_rrcnn1(x)
         x = nn.MaxPool2d(2)(x1)
@@ -310,7 +310,7 @@ class AttR2UNet(nn.Module):
         :param x: input tensor to the network, should be 4-dimensional
         :return: prediction of the network as a 4-dimensional tensor
         """
-        # The dimensionality comments are given as width x height x channels
+        # The dimensionality comments are given as width x height x channels at the actual state
         # x = 128x256x3
         x1 = self.d_rrcnn1(x)
         x = nn.MaxPool2d(2)(x1)

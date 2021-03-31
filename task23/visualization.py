@@ -119,7 +119,7 @@ if __name__ == '__main__':
             model_outputs.append(models[i].classify(image.to(device)).squeeze().cpu())
 
     # initialize the colormaps to use for plotting the classifications
-    cmap = colors.ListedColormap(dst.get_cs_labels() / 255)
+    cmap = colors.ListedColormap(dst.get_cs_colors() / 255)
     bounds = list(range(20))
     norm = colors.BoundaryNorm(bounds, cmap.N)
 

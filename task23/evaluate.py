@@ -36,6 +36,9 @@ def parse_args():
     parser.add_argument("-o", "--output", dest="output", type=str, nargs=1, default=["./"],
                         help="Directory to store the files in. This will create a \"metrics.txt\"-file and a "
                              "\"statistics.png\"-file.")
+    parser.add_argument("-c", "--class", dest="classes", default=False, action='store_true',
+                        help="Flag indicating to do class-wise evaluation, i.e. report the metrics class-wise. This "
+                             "evaluation will only be performed for the last (end-1-th) episode.")
     return parser
 
 
@@ -72,27 +75,31 @@ def check_arg_validity(args):
     return result
 
 
-def image_jaccard(ground_truth, prediction):
+def image_jaccard(ground_truth, prediction, classes):
     """
     Compute the Jaccard index of the predicted classes related to the ground truth image
     :param ground_truth: true labels for each pixel
     :param prediction: predicted classes for each pixel
     :return: Jaccard score of the input image compare to the ground truth
     """
+    if classes:
+        return jaccard_score(ground_truth, prediction, average=None, labels=list(range(20)))
     return jaccard_score(ground_truth, prediction, average='weighted')
 
 
-def image_f1(ground_truth, prediction):
+def image_f1(ground_truth, prediction, classes):
     """
     Compute the F1 score of the input image and the ground truth
     :param ground_truth: true labels for each pixel
     :param prediction: predicted classes for each pixel
     :return: f1 score of the input image compared to the ground truth
     """
+    if classes:
+        return f1_score(ground_truth, prediction, average=None, labels=list(range(20)))
     return f1_score(ground_truth, prediction, average='weighted')
 
 
-def image_dice(ground_truth, prediction):
+def image_dice(ground_truth, prediction, classes):
     """
     Compute the dice_coefficient based on the jaccard score as they are convertible using the formula provided on
     wikipedia: https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient#Difference_from_Jaccard
@@ -100,7 +107,10 @@ def image_dice(ground_truth, prediction):
     :param prediction: predicted classes for each pixel
     :return: soerensen-dice-coefficient of the input image compared to the ground truth
     """
-    jaccard = jaccard_score(ground_truth, prediction, average='weighted')
+    if classes:
+        jaccard = jaccard_score(ground_truth, prediction, average=None, labels=list(range(20)))
+    else:
+        jaccard = jaccard_score(ground_truth, prediction, average='weighted')
     return (2 * jaccard) / (1 + jaccard)
 
 
@@ -124,7 +134,7 @@ def image_sensitivity_specificity(ground_truth, prediction, weights):
     return sensitivity, specificity, class_sensitivity, class_specificity
 
 
-def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weights, batch_size):
+def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weights, batch_size, classes):
     """
     Evaluate an epoch of task 2 and 3
     :param epoch: number of the epoch to evaluate
@@ -163,9 +173,9 @@ def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weig
                 class_specificity += class_spec
 
                 # add to other epoch-wise measures
-                jaccard += image_jaccard(ground_truth, prediction)
-                f1 += image_f1(ground_truth, prediction)
-                dice += image_dice(ground_truth, prediction)
+                jaccard += image_jaccard(ground_truth, prediction, classes)
+                f1 += image_f1(ground_truth, prediction, classes)
+                dice += image_dice(ground_truth, prediction, classes)
 
     # return the averaged performance measures
     return sensitivity / length, specificity / length, class_sensitivity / length, class_specificity / length, \
@@ -207,39 +217,51 @@ if __name__ == '__main__':
     # initialize the performance measures
     sensitivities, specificities, f1_scores, jaccard_scores, dice_scores = [], [], [], [], []
 
-    # iterate over all episodes and evaluate the network
-    for e in range(results.start[0], results.end[0]):
+    if results.classes:
+        # perform class-wise evaluation of the last epoch
         sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice = \
-            eval_epoch(e, len(val_set), val_loader, results.weights[0], model, device, weights, batch_size)
+            eval_epoch(results.end[0] - 1, len(val_set), val_loader, results.weights[0], model, device, weights,
+                       batch_size, True)
 
-        # update the statistics
-        sensitivities.append(sensitivity)
-        specificities.append(specificity)
-        f1_scores.append(f1)
-        jaccard_scores.append(jaccard)
-        dice_scores.append(dice)
+        # print the results
+        print(F"Episode {results.end[0]} - Class-wise Evaluation:")
+        for i, (se, sp, f, j, d) in enumerate(zip(class_sensitivity, class_specificity, f1, jaccard, dice)):
+            print(val_set.get_cs_labels()[i], ": SE:", se, "- SP:", sp, "- F1:", f, "- JA:", j, "- SD:", d)
 
-        # print the actual performance of episode e
-        eval_string = F"Episode {e + 1} / {results.end[0] - results.start[0]} - Se: {sensitivity} | " \
-                      F"Sp: {specificity} | F1: {f1} | Jaccard: {jaccard} | Dice: {dice}"
-        print(eval_string)
+    else:
+        # iterate over all episodes and evaluate the network
+        for e in range(results.start[0], results.end[0]):
+            sensitivity, specificity, class_sensitivity, class_specificity, jaccard, f1, dice = \
+                eval_epoch(e, len(val_set), val_loader, results.weights[0], model, device, weights, batch_size, False)
 
-        # save the data to the output file
-        ofile.write(eval_string)
-        ofile.write("\t" + str(class_sensitivity))
-        ofile.write("\t" + str(class_specificity))
-        ofile.flush()
+            # update the statistics
+            sensitivities.append(sensitivity)
+            specificities.append(specificity)
+            f1_scores.append(f1)
+            jaccard_scores.append(jaccard)
+            dice_scores.append(dice)
 
-    ofile.close()
+            # print the actual performance of episode e
+            eval_string = F"Episode {e + 1} / {results.end[0] - results.start[0]} - Se: {sensitivity} | " \
+                          F"Sp: {specificity} | F1: {f1} | Jaccard: {jaccard} | Dice: {dice}"
+            print(eval_string)
 
-    # save a figure with the three lines from the evaluation
-    plt.plot(sensitivities, label="Sens.")
-    plt.plot(specificities, label="Spec.")
-    plt.plot(f1_scores, label="F1")
-    plt.plot(jaccard_scores, label="Jaccard")
-    plt.plot(dice_scores, label="Dice")
-    plt.legend(loc="lower right")
-    plt.title("Evaluation")
-    plt.xlabel("Episodes")
-    plt.savefig(os.path.join(results.output[0], "statistics.png"))
-    plt.show()
+            # save the data to the output file
+            ofile.write(eval_string)
+            ofile.write("\t" + str(class_sensitivity))
+            ofile.write("\t" + str(class_specificity))
+            ofile.flush()
+
+        ofile.close()
+
+        # save a figure with the three lines from the evaluation
+        plt.plot(sensitivities, label="Sens.")
+        plt.plot(specificities, label="Spec.")
+        plt.plot(f1_scores, label="F1")
+        plt.plot(jaccard_scores, label="Jaccard")
+        plt.plot(dice_scores, label="Dice")
+        plt.legend(loc="lower right")
+        plt.title("Evaluation")
+        plt.xlabel("Episodes")
+        plt.savefig(os.path.join(results.output[0], "statistics.png"))
+        plt.show()

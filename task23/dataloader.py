@@ -126,7 +126,7 @@ class cityscapesDataset(data.Dataset):
         """
         mask = mask.astype(int)
         label_mask = np.zeros((mask.shape[0], mask.shape[1]), dtype=np.int16)
-        for ii, label in enumerate(self.get_cs_labels()):
+        for ii, label in enumerate(self.get_cs_colors()):
             label_mask[np.where(np.all(mask == label, axis=-1))[:2]] = ii
         label_mask = label_mask.astype(int)
         return label_mask
@@ -138,7 +138,7 @@ class cityscapesDataset(data.Dataset):
         :param plot: whether to show the resulting color image in a figure.
         :return: the resulting decoded color image.
         """
-        label_colours = self.get_cs_labels()
+        label_colours = self.get_cs_colors()
         r = label_mask.copy()
         g = label_mask.copy()
         b = label_mask.copy()
@@ -157,30 +157,64 @@ class cityscapesDataset(data.Dataset):
             return rgb
 
     @staticmethod
-    def get_cs_labels():
+    def get_cs_colors():
         """
         Load the mapping that associates pascal classes with label colors
         Returns: np.ndarray with dimensions (19, 3)
         """
         return np.asarray(
-            [[128, 64, 128],
-             [244, 35, 232],
-             [70, 70, 70],
-             [102, 102, 156],
-             [190, 153, 153],
-             [153, 153, 153],
-             [250, 170, 30],
-             [220, 220, 0],
-             [107, 142, 35],
-             [152, 251, 152],
-             [0, 130, 180],
-             [220, 20, 60],
-             [255, 0, 0],
-             [0, 0, 142],
-             [0, 0, 70],
-             [0, 60, 100],
-             [0, 80, 100],
-             [0, 0, 230],
-             [119, 11, 32],
-             [0, 0, 0]]
+            [
+                [128, 64, 128],
+                [244, 35, 232],
+                [70, 70, 70],
+                [102, 102, 156],
+                [190, 153, 153],
+                [153, 153, 153],
+                [250, 170, 30],
+                [220, 220, 0],
+                [107, 142, 35],
+                [152, 251, 152],
+                [70, 130, 180],
+                [220, 20, 60],
+                [255, 0, 0],
+                [0, 0, 142],
+                [0, 0, 70],
+                [0, 60, 100],
+                [0, 80, 100],
+                [0, 0, 230],
+                [119, 11, 32],
+                [0, 0, 0]
+            ]
+        )
+
+    @staticmethod
+    def get_cs_labels():
+        """
+        Load the names of the classes
+        :return: array of the labels per index
+        """
+        return np.asarray(
+            [
+                'road',
+                'sidewalk',
+                'building',
+                'wall',
+                'fence',
+                'pole',
+                'traffic light',
+                'traffic sign',
+                'vegetation',
+                'terrain',
+                'sky',
+                'person',
+                'rider',
+                'car',
+                'truck',
+                'bus',
+                'train',
+                'motorcycle',
+                'bicycle',
+                'license plate',
+                'unlabeled'
+            ]
         )
