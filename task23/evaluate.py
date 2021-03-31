@@ -80,6 +80,7 @@ def image_jaccard(ground_truth, prediction, classes):
     Compute the Jaccard index of the predicted classes related to the ground truth image
     :param ground_truth: true labels for each pixel
     :param prediction: predicted classes for each pixel
+    :param classes: flag indicating class-wise evolution
     :return: Jaccard score of the input image compare to the ground truth
     """
     if classes:
@@ -92,6 +93,7 @@ def image_f1(ground_truth, prediction, classes):
     Compute the F1 score of the input image and the ground truth
     :param ground_truth: true labels for each pixel
     :param prediction: predicted classes for each pixel
+    :param classes: flag indicating class-wise evolution
     :return: f1 score of the input image compared to the ground truth
     """
     if classes:
@@ -105,6 +107,7 @@ def image_dice(ground_truth, prediction, classes):
     wikipedia: https://en.wikipedia.org/wiki/S%C3%B8rensen%E2%80%93Dice_coefficient#Difference_from_Jaccard
     :param ground_truth: true labels of each pixel
     :param prediction: predicted classes for each pixel
+    :param classes: flag indicating class-wise evolution
     :return: soerensen-dice-coefficient of the input image compared to the ground truth
     """
     if classes:
@@ -141,6 +144,7 @@ def eval_epoch(epoch, length, val_loader, weights_dir, model_class, device, weig
     :param length: number of images in the dataset
     :param val_loader: dataloader to load the validation images from
     :param weights_dir: directory with the weights
+    :param classes: flag indicating class-wise evolution
     :return: performance measures of this epoch
     """
     # initialize the model
