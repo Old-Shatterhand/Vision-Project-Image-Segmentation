@@ -24,7 +24,7 @@ def parse_args():
                         help="Flag to be set to use weighted cross_entropy loss for optimization.")
     parser.add_argument("-s", "--start", dest="start", type=int, nargs=1, default=0,
                         help="Start index of the training. Used for saving the weights to not override old results.")
-    parser.add_argument("-e", "--end", dest="end", type=int, nargs=1, required=True, help="Number of epochs to train")
+    parser.add_argument("-e", "--end", dest="end", type=int, nargs=1, required=True, help="Number of epochs to train.")
     parser.add_argument("-r", "--root", dest="root", type=str, nargs=1, required=True,
                         help="Root directory of the dataset. This folder should contain the \"gtFine\" folder and the "
                              "\"leftImg8bit\" folder.")
@@ -38,6 +38,44 @@ def parse_args():
                         help="Directory to store the curves in. This will create a \"loss.png\"-file and "
                              "\"accuracy\"-file.")
     return parser
+
+
+def check_arg_validity(args):
+    """
+    Check arguments for validity and report invalid arguments
+    :param args: parsed arguments
+    :return: True if all arguments are valid, False otherwise
+    """
+    result = True
+
+    # check the root directory
+    if not os.path.isdir(args.root[0]):
+        result = False
+        print("Root directory does not exist.")
+    else:
+        # and if the expected children are contained
+        sub_dirs = [os.path.join(args.root[0], o) for o in os.listdir(args.root[0])
+                    if os.path.isdir(os.path.join(args.root[0], o))]
+        if "gtFine" not in sub_dirs or "leftImg8bit" not in sub_dirs:
+            result = False
+            print("Database root has not the expected subdirectories.")
+
+    # check the output directory
+    if not os.path.isdir(args.output[0]):
+        result = False
+        print("Output directory does not exist.")
+
+    # check the target directory
+    if not os.path.isdir(args.target[0]):
+        result = False
+        print("Target directory does not exist.")
+
+    # check the directory of the weights
+    if args.weights is not None and not os.path.exists(args.weights[0]):
+        result = False
+        print("Weights file does not exist.")
+
+    return result
 
 
 if __name__ == '__main__':
@@ -115,8 +153,7 @@ if __name__ == '__main__':
             episode_accuracy += accuracy
 
             print("\rEpisode", e + 1, "/", results.end[0], "- Batch", i + 1, "/", len(train_set) // batch_size,
-                  "\tLoss:",
-                  loss, "\tAcc:", accuracy, end="")
+                  "\tLoss:", loss, "\tAcc:", accuracy, end="")
 
         '''
         update the general statistics

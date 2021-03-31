@@ -29,6 +29,34 @@ def parse_args():
     return parser
 
 
+def check_arg_validity(args):
+    """
+    Check arguments for validity and report invalid arguments
+    :param args: parsed arguments
+    :return: True if all arguments are valid, False otherwise
+    """
+    result = True
+
+    # check the root directory
+    if not os.path.isdir(args.root[0]):
+        result = False
+        print("Root directory does not exist.")
+    else:
+        # and if the expected children are contained
+        sub_dirs = [os.path.join(args.root[0], o) for o in os.listdir(args.root[0])
+                    if os.path.isdir(os.path.join(args.root[0], o))]
+        if "gtFine" not in sub_dirs or "leftImg8bit" not in sub_dirs:
+            result = False
+            print("Database root has not the expected subdirectories.")
+
+    # check the output directory
+    if not os.path.isdir(args.output[0]):
+        result = False
+        print("Output directory does not exist.")
+
+    return result
+
+
 def count_values(img, bins=20):
     """
     count the pixelwise occurrences in each class
@@ -47,6 +75,8 @@ if __name__ == '__main__':
     # read the arguments
     parser = parse_args()
     results = parser.parse_args(sys.argv[1:])
+    if not check_arg_validity(results):
+        exit(1)
 
     # initialize some fields for the statistics
     num_classes = 20

@@ -39,6 +39,39 @@ def parse_args():
     return parser
 
 
+def check_arg_validity(args):
+    """
+    Check arguments for validity and report invalid arguments
+    :param args: parsed arguments
+    :return: True if all arguments are valid, False otherwise
+    """
+    result = True
+
+    # check the root directory
+    if not os.path.isdir(args.root[0]):
+        result = False
+        print("Root directory does not exist.")
+    else:
+        # and if the expected children are contained
+        sub_dirs = [os.path.join(args.root[0], o) for o in os.listdir(args.root[0])
+                    if os.path.isdir(os.path.join(args.root[0], o))]
+        if "gtFine" not in sub_dirs or "leftImg8bit" not in sub_dirs:
+            result = False
+            print("Database root has not the expected subdirectories.")
+
+    # check the output directory
+    if not os.path.isdir(args.output[0]):
+        result = False
+        print("Output directory does not exist.")
+
+    # check the directory of the weights
+    if args.weights is not None and not os.path.exists(args.weights[0]):
+        result = False
+        print("Weights file does not exist.")
+
+    return result
+
+
 def image_jaccard(ground_truth, prediction):
     """
     Compute the Jaccard index of the predicted classes related to the ground truth image

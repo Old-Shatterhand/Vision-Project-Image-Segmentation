@@ -36,6 +36,54 @@ def parse_args():
     return parser
 
 
+def check_arg_validity(args):
+    """
+    Check arguments for validity and report invalid arguments
+    :param args: parsed arguments
+    :return: True if all arguments are valid, False otherwise
+    """
+    result = True
+
+    # check the root directory
+    if not os.path.isdir(args.root[0]):
+        result = False
+        print("Root directory does not exist.")
+    else:
+        # and if the expected children are contained
+        sub_dirs = [os.path.join(args.root[0], o) for o in os.listdir(args.root[0])
+                    if os.path.isdir(os.path.join(args.root[0], o))]
+        if "gtFine" not in sub_dirs or "leftImg8bit" not in sub_dirs:
+            result = False
+            print("Database root has not the expected subdirectories.")
+
+    # check the output directory
+    if not os.path.isdir(args.output[0]):
+        result = False
+        print("Output directory does not exist.")
+
+    # check the file of the weights of the R2UNet, ...
+    if not os.path.exists(args.r2u[0]):
+        result = False
+        print("Weights file of R2UNet does not exist.")
+
+    # ... the R2UNet with weighted loss, ...
+    if not os.path.exists(args.w_r2u[0]):
+        result = False
+        print("Weights file of R2UNet trained with weighted loss does not exist.")
+
+    # ... the AttentionR2UNet, ...
+    if not os.path.exists(args.att_r2u[0]):
+        result = False
+        print("Weights file of AttentionR2UNet does not exist.")
+
+    # ..., and the AttentionR2UNet trained with weighted loss.
+    if not os.path.exists(args.w_att_r2u[0]):
+        result = False
+        print("Weights file of AttentionR2UNet trained with weighted loss does not exist.")
+
+    return result
+
+
 if __name__ == '__main__':
     # Read the arguments
     parser = parse_args()
